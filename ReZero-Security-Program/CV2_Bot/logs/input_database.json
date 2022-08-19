@@ -1,0 +1,15 @@
+{
+    "admin" : {
+            "purge": ["purge"]
+    },
+    "moderator": {
+            "terminate": ["bye bot", "bye opencv-python","terminate program", "self destruct"]
+        },
+    "user": {
+            "help": ["help", "get help"],
+            "get-anime": ["get anime", "get ani", "get-anime", "get_anime", "getanime", "anime"],
+            "get-perm": ["get perm", "perm", "my perm"],
+            "get-status": ["get status", "report", "status"],
+            "get-dir-content": ["get dir", "get directory"]
+        }
+}
