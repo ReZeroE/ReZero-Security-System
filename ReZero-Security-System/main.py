@@ -1,4 +1,3 @@
-import os
 from threading import Thread
 from cv2_detection import run_program
 from cv2_bot.bot import run_bot

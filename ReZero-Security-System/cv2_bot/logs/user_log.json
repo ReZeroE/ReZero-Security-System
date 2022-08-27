@@ -1,6 +1,5 @@
 {
-    "admin": [{"273474320544694274": "ReZeroK"}, 
-            {"641448415255068672": "beyca_C"}],
+    "admin": [{"000000000000000000": "add username and userID as dictionaries in the list"}],
     "moderator": [],
     "user": []
 }

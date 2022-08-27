@@ -5,19 +5,20 @@ import time
 import asyncio
 from datetime import datetime
 
-from .permission import PermissionIdentifier
-from .parse_command import ParseCommand
-from .log_data import LogData
-from .resize_vid import resize_video
+from permission import PermissionIdentifier
+from parse_command import ParseCommand
+from log_data import LogData
+from resize_vid import resize_video
+from anilist import AnilistDiscord
 
-from .anilist import AnilistDiscord
 anilist = AnilistDiscord()
 
 
 client = discord.Client()
-BOT_ID = 'MTAwOTk0MjkwMjAzNTcxODMyNw.GlEUSM.izsf9Oc3m-tFkbZdUbpf348-MOlxAfcFVYNjG8'
-BOT_CHANNEL_ID = 1009945436037058650
-BOT_SERVER_ID = 961062118315130990
+
+BOT_ID = 'xxxxxxxxxxxxxxxxxxxx'
+BOT_CHANNEL_ID = 0000000000000000000
+BOT_SERVER_ID = 0000000000000000000
 
 BOT_NAME = 'OpenCV-Python'
 prefix = '>'
@@ -43,37 +44,48 @@ async def check_for_new_recording():
 
     await client.wait_until_ready()
     bot_channel = client.get_channel(BOT_CHANNEL_ID)
-    while not client.is_closed():
 
-        recordings = os.listdir(RECORDINGS_PATH)
-        try: 
-            recordings.remove('out.mp4')                                # buffer recording doesn't count
-        except: pass
-        recordings = [r for r in recordings if r.find('.mp4') != -1]    # ensure all files are .mp4 files
+    try:
+        while not client.is_closed():
+            recordings = os.listdir(RECORDINGS_PATH)
+            try: 
+                recordings.remove('out.mp4')                                # buffer recording doesn't count
+            except: pass
+            recordings = [r for r in recordings if r.find('.mp4') != -1]    # ensure all files are .mp4 files
 
-        if len(recordings) > recordings_count: # new video detected
-            date_time = datetime.now().strftime("[%H:%M:%S]")
-            await bot_channel.send(f"**{date_time} New Video(s) Detected** -> {[r for r in recordings if r not in recordings_history]}")
+            new_video_detected = False
+            if len(recordings) > recordings_count: # new video detected
+                date_time = datetime.now().strftime("[%H:%M:%S]")
+                await bot_channel.send(f"**{date_time} New Video(s) Detected** -> {[r for r in recordings if r not in recordings_history]}")
+                new_video_detected = True
 
-            if len(recordings) - recordings_count == 1: # only one new video detected
-                new_recording_filename = [r for r in recordings if r not in recordings_history][0]
-                vid_file_path = RECORDINGS_PATH + f"/{new_recording_filename}"
+                if len(recordings) - recordings_count == 1: # only one new video detected
+                    new_recording_filename = [r for r in recordings if r not in recordings_history][0]
+                    vid_file_path = RECORDINGS_PATH + f"/{new_recording_filename}"
 
-                await bot_channel.send("Waiting for the video to finalize... (10 minutes)")
-                await asyncio.sleep(6 * 10) # wait for the video to finalize
+                    await bot_channel.send("Waiting for the video to finalize... (10 minutes)")
+                    await asyncio.sleep(6) # wait for the video to finalize
+                    try:
+                        await bot_channel.send(file=discord.File(resize_video(vid_file_path)))
+                    except Exception as ex:
+                        await bot_channel.send(f"**Error reformatting video {vid_file_path}.** [{str(ex)}]")
+                else:
+                    await bot_channel.send("New video count > 1 (old videos present in the log dir). Not reporting.")
+
+                recordings_count = len(recordings)
+                recordings_history = recordings
+
+            dt = datetime.now().strftime("[%H:%M:%S]")
+            if not new_video_detected:
                 try:
-                    await bot_channel.send(file=discord.File(resize_video(vid_file_path)))
-                except Exception as ex:
-                    await bot_channel.send(f"**Error reformatting video {vid_file_path}.** [{str(ex)}]")
-            else:
-                await bot_channel.send("New video count > 1. Not reporting.")
-            
-            recordings_count = len(recordings)
-            recordings_history = recordings
-
-        dt = datetime.now().strftime("[%H:%M:%S]")
-        await bot_channel.send(f"{dt} Pending new video...")
-        await asyncio.sleep(15) # task runs every 15 seconds
+                    await bot_channel.purge(limit=1)
+                except: pass # discord.errors.NotFound
+            await bot_channel.send(f"{dt} Pending new video...")
+            await asyncio.sleep(15) # task runs every 15 seconds
+    
+    except Exception as ex:
+        await bot_channel.send(f"FATAL ERROR: {ex} -> sleeping for 60 seconds (recommanded: `>get dir <path>`)")
+        await asyncio.sleep(60)
 
 
 @client.event
@@ -83,8 +95,8 @@ async def on_message(message):
     user_id = message.author.id
     username = message.author.name
 
-    if message.content.startswith(prefix) == False: return  # check bot command prefix
-    if message.author == client.user: return                # check message user if bot
+    if message.content.startswith(prefix) == False: return  # check bot command's prefix
+    if message.author == client.user: return                # check is message user is bot
     if server_id != BOT_SERVER_ID: return                   # check bot's operational server
 
     pi = PermissionIdentifier()
@@ -100,7 +112,6 @@ async def on_message(message):
     # parse command
     pc = ParseCommand()
     parsed_command = pc.parse_command(original_input)
-
     print(f"Input Data -> User Permission: {permission}, Parsed Command: {parsed_command}")
 
     # Admin comands =====================================================================================================================================
@@ -117,12 +128,14 @@ async def on_message(message):
             except TypeError:
                 await message.channel.send(f"Purge count >{user_purge_list[1]}< incorrect. Please re-enter.")
 
-            await message.channel.purge(limit=1)
-            await message.channel.send(f"Message Purge Initiated ({purge_count} messages will be purged in 3 seconds).")
-            time.sleep(3)
-            await message.channel.purge(limit=purge_count + 1)
+            try:
+                await message.channel.purge(limit=1)
+                await message.channel.send(f"Message Purge Initiated ({purge_count} messages will be purged in 3 seconds).")
+                time.sleep(3)
+                await message.channel.purge(limit=purge_count + 1)
+            except: pass # discord.errors.NotFound
             return 
-            
+
 
     # Moderator commands ================================================================================================================================
     if parsed_command.startswith('M'):
@@ -140,9 +153,8 @@ async def on_message(message):
 
     # U1 Help
     # U2 Anime search
-
     # U3 Get directory content
-
+    # *U4 UNIMPLEMENTED
     # U5 Get Perm
     # U6 Get Status
 
@@ -156,10 +168,9 @@ async def on_message(message):
             embed_obj = discord.Embed(title="Commands Panel", description="", color=0xA0DB8E)
             embed_obj.add_field(name="`>help`", value="Displays all user commands", inline=False)
             embed_obj.add_field(name="`>status`", value="Gets current bot status (including internet latency)", inline=False)
+            embed_obj.add_field(name="`>get dir <directory path>`", value="Returns the content of the given directory path on the machine.", inline=False)
             embed_obj.add_field(name="`>get anime <anime name>`", value="Searches up an anime with the given name.\nExample: `>get anime kimetsu no yaiba`", inline=False)
             await message.channel.send(embed=embed_obj)
-
-            # await message.channel.send(f"This is the help command. It has not been implemented yet.")
             return
 
         # get anime
@@ -182,12 +193,20 @@ async def on_message(message):
             target_dir = original_input.replace('>', '').replace(temp_l[1], '').strip()
             try:
                 files_list = os.listdir(target_dir)
-                await message.channel.send(files_list)
+                str_files_list = "\n".join(files_list)
+
+                ebd = discord.Embed(title="Directory Files", color=discord.Color.blue())
+                ebd.add_field(name=f"{target_dir}", value=str_files_list)
+                await message.channel.send(embed=ebd)
             except:
                 rd = os.path.dirname(os.path.dirname(__file__)) + "/recordings"
                 await message.channel.send(f"**Directory ({target_dir}) cannot be found.** [Recording Dir: {rd}]")
             return
         
+
+        # UNIMPLEMENTED
+        if parsed_command == "U4":
+            return
 
 
         # get perm
@@ -210,7 +229,6 @@ async def on_message(message):
             return
 
     await message.channel.send(f"Sorry, I can't understand your input.\nFor any help, use the command `>help`.")
-
 
 
 def run_bot():
