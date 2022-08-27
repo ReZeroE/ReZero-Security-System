@@ -1,5 +1,5 @@
-opencv-python
-numpy
-moviepy
-AnilistPython
-discord
+opencv-python==4.6.0.66
+numpy==1.19.5
+moviepy==1.0.3
+discord==1.7.3
+AnilistPython==0.1.3
